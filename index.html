@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniPOS Pro - Hybrid POS & Online Order (Supabase Powered)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- QuaggaJS untuk Barcode Scanner -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+        .bca-shadow { box-shadow: 0 4px 20px -2px rgba(0, 51, 153, 0.08); }
+        @media print {
+            body * { visibility: hidden; }
+            #printable-receipt, #printable-receipt * { visibility: visible; }
+            #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen pb-20" x-data="omniApp()" x-init="initApp()">
+
+    <!-- ================= TOP NAVIGATION / HEADER ================= -->
+    <header class="bg-gradient-to-r from-blue-900 via-indigo-900 to-blue-950 text-white shadow-xl sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-xl shadow-inner border border-blue-400 overflow-hidden">
+                    <template x-if="business.logo">
+                        <img :src="business.logo" class="w-full h-full object-cover">
+                    </template>
+                    <template x-if="!business.logo">
+                        <span>⚡</span>
+                    </template>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base tracking-wide leading-tight" x-text="business.name"></h1>
+                    <p class="text-[10px] text-blue-200 flex items-center gap-1">
+                        <span class="inline-block w-2 h-2 rounded-full" :class="isOnlineDB ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"></span>
+                        <span x-text="isOnlineDB ? 'Supabase Connected' : 'Local Mode (Offline)'"></span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- User & Auth Menu -->
+            <div class="flex items-center space-x-3">
+                <template x-if="currentUser">
+                    <div class="flex items-center space-x-2 bg-blue-950/60 px-3 py-1.5 rounded-xl border border-blue-700/50 text-xs">
+                        <div>
+                            <p class="font-semibold text-white" x-text="currentUser.name"></p>
+                            <p class="text-[10px] uppercase text-amber-400 font-bold" x-text="currentUser.role"></p>
+                        </div>
+                        <button @click="logout" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold transition ml-2">Keluar</button>
+                    </div>
+                </template>
+                <template x-if="!currentUser">
+                    <button @click="openLoginModal = true" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow">Login / Masuk</button>
+                </template>
+            </div>
+        </div>
+    </header>
+
+    <!-- ================= MAIN APP VIEW ================= -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+
+        <!-- KONDISI 1: BELUM LOGIN / HALAMAN UTAMA PELANGGAN (KATALOG ONLINE) -->
+        <template x-if="!currentUser || currentUser.role === 'customer'">
+            <div class="space-y-6">
+                <!-- Hero Banner Online Order -->
+                <div class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden flex flex-col md:flex-row justify-between items-center">
+                    <div class="relative z-10 space-y-2 max-w-xl">
+                        <span class="bg-amber-400 text-blue-950 font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-widest">Belanja Online & Pesan WA</span>
+                        <h2 class="text-2xl md:text-3xl font-extrabold">Selamat Datang di Katalog <span x-text="business.name"></span></h2>
+                        <p class="text-xs md:text-sm text-blue-100" x-text="business.address"></p>
+                        <div class="pt-2 flex gap-3">
+                            <button @click="activeCustomerTab = 'katalog'" :class="activeCustomerTab === 'katalog' ? 'bg-white text-blue-900 font-bold' : 'bg-blue-900/50 text-white'" class="px-4 py-2 rounded-xl text-xs transition">🛍️ Katalog Produk</button>
+                            <button @click="activeCustomerTab = 'status_pesanan'" :class="activeCustomerTab === 'status_pesanan' ? 'bg-white text-blue-900 font-bold' : 'bg-blue-900/50 text-white'" class="px-4 py-2 rounded-xl text-xs transition">📦 Lacak Pesanan Saya</button>
+                        </div>
+                    </div>
+                    <div class="text-7xl opacity-20 mt-4 md:mt-0">🛒</div>
+                </div>
+
+                <!-- SUB-TAB 1A: KATALOG PRODUK PELANGGAN -->
+                <div x-show="activeCustomerTab === 'katalog'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 space-y-4">
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">🔍</span>
+                            <input type="text" x-model="searchQuery" placeholder="Cari produk impian Anda..." class="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 bca-shadow">
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <template x-for="item in filteredProducts" :key="item.id">
+                                <div class="bg-white rounded-2xl border border-slate-100 p-3 hover:border-blue-500 hover:shadow-lg transition flex flex-col justify-between group bca-shadow">
+                                    <div>
+                                        <div class="w-full h-32 bg-slate-100 rounded-xl overflow-hidden mb-2.5 relative">
+                                            <img :src="item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=300&q=80'" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                                        </div>
+                                        <h3 class="font-semibold text-slate-800 text-xs line-clamp-2" x-text="item.name"></h3>
+                                    </div>
+                                    <div class="mt-3 pt-2 border-t border-slate-50 flex justify-between items-center">
+                                        <div>
+                                            <p class="text-blue-700 font-bold text-xs" x-text="formatRupiah(item.price)"></p>
+                                            <p class="text-[10px] text-slate-400">Stok: <span x-text="item.stock"></span></p>
+                                        </div>
+                                        <button @click="addToCart(item)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow">+</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Keranjang Belanja Online -->
+                    <div class="bg-white rounded-2xl p-5 bca-shadow space-y-4 h-fit border border-slate-100">
+                        <h2 class="font-bold text-slate-800 text-sm flex justify-between items-center">
+                            <span>Keranjang Pesanan Anda</span>
+                            <span class="text-xs bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full" x-text="cart.length + ' item'"></span>
+                        </h2>
+
+                        <div class="max-h-[220px] overflow-y-auto divide-y divide-slate-100 pr-1">
+                            <template x-for="(ci, idx) in cart" :key="ci.id">
+                                <div class="py-2 flex justify-between items-center text-xs">
+                                    <div>
+                                        <p class="font-medium text-slate-800" x-text="ci.name"></p>
+                                        <p class="text-[10px] text-slate-400" x-text="formatRupiah(ci.price)"></p>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button @click="decreaseQty(idx)" class="w-5 h-5 bg-slate-100 rounded text-slate-600 font-bold">-</button>
+                                        <span class="font-semibold w-4 text-center" x-text="ci.qty"></span>
+                                        <button @click="increaseQty(idx)" class="w-5 h-5 bg-slate-100 rounded text-slate-600 font-bold">+</button>
+                                    </div>
+                                </div>
+                            </template>
+                            <p x-show="cart.length === 0" class="text-slate-400 text-center py-6 text-xs">Keranjang masih kosong</p>
+                        </div>
+
+                        <div class="border-t border-slate-100 pt-3 space-y-3 text-xs">
+                            <div class="flex justify-between font-bold text-sm text-slate-900">
+                                <span>Total Belanja</span>
+                                <span class="text-blue-700 text-base" x-text="formatRupiah(cartTotal)"></span>
+                            </div>
+
+                            <div class="space-y-2">
+                                <input type="text" x-model="customerOrderForm.name" placeholder="Nama Lengkap Anda" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                                <input type="text" x-model="customerOrderForm.phone" placeholder="Nomor WhatsApp (Contoh: 08123456)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                                <textarea x-model="customerOrderForm.address" placeholder="Alamat Pengiriman Lengkap" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs" rows="2"></textarea>
+                            </div>
+
+                            <button @click="checkoutWhatsApp" :disabled="cart.length === 0 || !customerOrderForm.name || !customerOrderForm.phone" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-md flex items-center justify-center space-x-2">
+                                <span>💬 Checkout via WhatsApp</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUB-TAB 1B: LACAK PESANAN PELANGGAN -->
+                <div x-show="activeCustomerTab === 'status_pesanan'" class="bg-white rounded-2xl p-6 bca-shadow max-w-3xl mx-auto border border-slate-100 space-y-4">
+                    <h2 class="font-bold text-slate-800 text-base">Cek Status Pesanan Saya</h2>
+                    <div class="flex gap-2">
+                        <input type="text" x-model="trackingPhone" placeholder="Masukkan Nomor WhatsApp Anda..." class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs">
+                        <button @click="searchTracking" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition">Cari Pesanan</button>
+                    </div>
+
+                    <div class="space-y-3 pt-2">
+                        <template x-for="trx in customerOrdersResult" :key="trx.id">
+                            <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2 text-xs">
+                                <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+                                    <div>
+                                        <p class="font-mono font-bold text-blue-700" x-text="trx.id"></p>
+                                        <p class="text-[10px] text-slate-400" x-text="trx.date"></p>
+                                    </div>
+                                    <span class="px-3 py-1 rounded-full font-bold text-[10px]" 
+                                          :class="{
+                                              'bg-amber-100 text-amber-700': trx.status === 'Diterima',
+                                              'bg-blue-100 text-blue-700': trx.status === 'Dipersiapkan',
+                                              'bg-emerald-100 text-emerald-700': trx.status === 'Diantar / Selesai'
+                                          }" x-text="trx.status"></span>
+                                </div>
+                                <div class="text-slate-600">
+                                    <template x-for="i in trx.items">
+                                        <div class="flex justify-between">
+                                            <span x-text="i.name + ' (' + i.qty + 'x)'"></span>
+                                            <span x-text="formatRupiah(i.price * i.qty)"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="flex justify-between font-bold pt-2 border-t border-slate-200 text-slate-900">
+                                    <span>Total:</span>
+                                    <span class="text-blue-700" x-text="formatRupiah(trx.finalTotal)"></span>
+                                </div>
+                            </div>
+                        </template>
+                        <p x-show="searched && customerOrdersResult.length === 0" class="text-center text-slate-400 py-6 text-xs">Tidak ada riwayat pesanan dengan nomor tersebut.</p>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- KONDISI 2: KASIR / ADMIN DASHBOARD (POS OFFLINE & MANAJEMEN) -->
+        <template x-if="currentUser && (currentUser.role === 'admin' || currentUser.role === 'kasir')">
+            <div class="space-y-6">
+                <!-- Tab Navigasi Admin / Kasir -->
+                <div class="flex flex-wrap gap-2 bg-white p-2 rounded-2xl bca-shadow border border-slate-100">
+                    <button @click="activeAdminTab = 'pos'" :class="activeAdminTab === 'pos' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'" class="px-4 py-2 rounded-xl text-xs font-semibold transition">🛍️ Kasir POS Offline</button>
+                    <button @click="activeAdminTab = 'pesanan_online'" :class="activeAdminTab === 'pesanan_online' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'" class="px-4 py-2 rounded-xl text-xs font-semibold transition">💬 Daftar Pesanan Online (<span x-text="onlineOrders.length"></span>)</button>
+                    <button @click="activeAdminTab = 'produk'" :class="activeAdminTab === 'produk' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'" class="px-4 py-2 rounded-xl text-xs font-semibold transition">📦 Kelola Produk</button>
+                    <button @click="activeAdminTab = 'laporan'" :class="activeAdminTab === 'laporan' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'" class="px-4 py-2 rounded-xl text-xs font-semibold transition">📊 Laporan Penjualan</button>
+                    <template x-if="currentUser.role === 'admin'">
+                        <button @click="activeAdminTab = 'settings'" :class="activeAdminTab === 'settings' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'" class="px-4 py-2 rounded-xl text-xs font-semibold transition">⚙️ Setting Usaha & Supabase</button>
+                    </template>
+                </div>
+
+                <!-- ADMIN TAB A: POS OFFLINE -->
+                <div x-show="activeAdminTab === 'pos'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 space-y-4">
+                        <div class="flex gap-2">
+                            <div class="relative flex-1">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">🔍</span>
+                                <input type="text" x-model="searchQuery" placeholder="Cari nama produk atau barcode..." class="w-full bg-white border border-slate-200 rounded-2xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 bca-shadow">
+                            </div>
+                            <button @click="startScanner" class="bg-blue-700 hover:bg-blue-800 text-white px-5 py-3 rounded-2xl text-xs font-bold transition shadow">📷 Scan Barcode</button>
+                        </div>
+
+                        <!-- Kamera Scanner Modal -->
+                        <div x-show="isScanning" class="bg-slate-900 rounded-2xl overflow-hidden relative shadow-xl border-2 border-blue-500 p-2">
+                            <div id="interactive" class="viewport w-full h-52 rounded-xl overflow-hidden relative"></div>
+                            <div class="flex justify-between items-center mt-2 px-2">
+                                <span class="text-xs text-slate-300">Arahkan kamera ke barcode...</span>
+                                <button @click="stopScanner" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-1.5 rounded-xl text-xs font-bold">Tutup</button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto pr-1">
+                            <template x-for="item in filteredProducts" :key="item.id">
+                                <div @click="addToCart(item)" class="bg-white rounded-2xl border border-slate-100 p-3 cursor-pointer hover:border-blue-500 hover:shadow-lg transition flex flex-col justify-between group bca-shadow">
+                                    <div>
+                                        <div class="w-full h-28 bg-slate-100 rounded-xl overflow-hidden mb-2 relative">
+                                            <img :src="item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=300&q=80'" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                                            <span class="absolute top-2 left-2 bg-slate-900/70 text-white text-[9px] font-mono px-2 py-0.5 rounded" x-text="item.barcode"></span>
+                                        </div>
+                                        <h3 class="font-semibold text-slate-800 text-xs line-clamp-2 group-hover:text-blue-600" x-text="item.name"></h3>
+                                    </div>
+                                    <div class="mt-3 pt-2 border-t border-slate-50 flex justify-between items-center">
+                                        <p class="text-blue-700 font-bold text-xs" x-text="formatRupiah(item.price)"></p>
+                                        <span class="w-6 h-6 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs group-hover:bg-blue-600 group-hover:text-white transition">+</span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Keranjang POS Offline & Pembayaran -->
+                    <div class="bg-white rounded-2xl p-5 bca-shadow flex flex-col justify-between space-y-4 h-fit border border-slate-100">
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-sm mb-3 flex justify-between">
+                                <span>Kasir Offline Cart</span>
+                                <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full" x-text="cart.length + ' item'"></span>
+                            </h2>
+                            <div class="max-h-[220px] overflow-y-auto divide-y divide-slate-100 pr-1">
+                                <template x-for="(ci, idx) in cart" :key="ci.id">
+                                    <div class="py-2 flex justify-between items-center text-xs">
+                                        <div>
+                                            <p class="font-medium text-slate-800" x-text="ci.name"></p>
+                                            <p class="text-[10px] text-slate-400" x-text="formatRupiah(ci.price)"></p>
+                                        </div>
+                                        <div class="flex items-center space-x-1.5">
+                                            <button @click="decreaseQty(idx)" class="w-5 h-5 bg-slate-100 rounded text-slate-600 font-bold">-</button>
+                                            <span class="font-semibold w-4 text-center" x-text="ci.qty"></span>
+                                            <button @click="increaseQty(idx)" class="w-5 h-5 bg-slate-100 rounded text-slate-600 font-bold">+</button>
+                                        </div>
+                                    </div>
+                                </template>
+                                <p x-show="cart.length === 0" class="text-slate-400 text-center py-6 text-xs">Belum ada barang dipilih</p>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-100 pt-3 space-y-2 text-xs">
+                            <div class="flex justify-between font-bold text-sm text-slate-900">
+                                <span>Total Pembayaran</span>
+                                <span class="text-blue-700 text-base" x-text="formatRupiah(cartTotal)"></span>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-500 mb-1">Uang Tunai (Rp):</label>
+                                <input type="number" x-model.number="payment" placeholder="0" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold">
+                            </div>
+                            <div class="flex justify-between text-xs text-slate-600">
+                                <span>Kembalian:</span>
+                                <span class="font-bold text-emerald-600 text-sm" x-text="formatRupiah(changeMoney)"></span>
+                            </div>
+                            <button @click="checkoutPOS" :disabled="cart.length === 0 || payment < cartTotal" class="w-full bg-blue-700 hover:bg-blue-800 disabled:bg-slate-200 disabled:text-slate-400 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow">
+                                Bayar & Cetak Struk
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ADMIN TAB B: DAFTAR PESANAN ONLINE (STATUS WORKFLOW) -->
+                <div x-show="activeAdminTab === 'pesanan_online'" class="bg-white rounded-2xl p-6 bca-shadow border border-slate-100 space-y-4">
+                    <h2 class="text-base font-bold text-slate-800">Manajemen Status Pesanan Pelanggan Online</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="text-slate-400 border-b border-slate-100 uppercase font-semibold">
+                                    <th class="p-3">ID / Waktu</th>
+                                    <th class="p-3">Pelanggan & WA</th>
+                                    <th class="p-3">Alamat</th>
+                                    <th class="p-3">Item Pesanan</th>
+                                    <th class="p-3">Total</th>
+                                    <th class="p-3">Status Pesanan</th>
+                                    <th class="p-3 text-center">Aksi / Cetak</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50">
+                                <template x-for="trx in onlineOrders" :key="trx.id">
+                                    <tr>
+                                        <td class="p-3 font-mono">
+                                            <div class="font-bold text-slate-800" x-text="trx.id"></div>
+                                            <div class="text-[10px] text-slate-400" x-text="trx.date"></div>
+                                        </td>
+                                        <td class="p-3">
+                                            <div class="font-semibold text-slate-800" x-text="trx.customerName"></div>
+                                            <div class="text-blue-600" x-text="trx.phone"></div>
+                                        </td>
+                                        <td class="p-3 text-slate-600 max-w-xs" x-text="trx.address"></td>
+                                        <td class="p-3 text-slate-600">
+                                            <template x-for="i in trx.items">
+                                                <div x-text="i.name + ' (' + i.qty + 'x)'"></div>
+                                            </template>
+                                        </td>
+                                        <td class="p-3 font-bold text-blue-700" x-text="formatRupiah(trx.finalTotal)"></td>
+                                        <td class="p-3">
+                                            <select x-model="trx.status" @change="updateOrderStatus(trx)" class="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 font-semibold text-xs"
+                                                    :class="{
+                                                        'text-amber-700 bg-amber-50': trx.status === 'Diterima',
+                                                        'text-blue-700 bg-blue-50': trx.status === 'Dipersiapkan',
+                                                        'text-emerald-700 bg-emerald-50': trx.status === 'Diantar / Selesai'
+                                                    }">
+                                                <option value="Diterima">Diterima</option>
+                                                <option value="Dipersiapkan">Dipersiapkan</option>
+                                                <option value="Diantar / Selesai">Diantar / Selesai</option>
+                                            </select>
+                                        </td>
+                                        <td class="p-3 text-center space-x-2">
+                                            <button @click="printReceipt(trx)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-bold">🖨️ Struk</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="onlineOrders.length === 0">
+                                    <td colspan="7" class="text-center py-6 text-slate-400">Belum ada pesanan online masuk.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ADMIN TAB C: KELOLA PRODUK -->
+                <div x-show="activeAdminTab === 'produk'" class="bg-white rounded-2xl p-6 bca-shadow border border-slate-100 space-y-4">
+                    <h2 class="text-base font-bold text-slate-800">Manajemen Katalog Produk</h2>
+                    <form @submit.prevent="saveProduct" class="grid grid-cols-1 sm:grid-cols-5 gap-3 pb-4 border-b border-slate-100 text-xs">
+                        <div>
+                            <label class="block text-slate-500 mb-1">Barcode</label>
+                            <input type="text" x-model="productForm.barcode" required placeholder="8991" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1">Nama Produk</label>
+                            <input type="text" x-model="productForm.name" required placeholder="Nama Barang" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1">Harga (Rp)</label>
+                            <input type="number" x-model.number="productForm.price" required placeholder="0" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1">Stok</label>
+                            <input type="number" x-model.number="productForm.stock" required placeholder="0" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-slate-500 mb-1">URL Gambar</label>
+                            <input type="url" x-model="productForm.image" placeholder="https://..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                        </div>
+                        <div class="sm:col-span-5 flex justify-end">
+                            <button type="submit" class="bg-blue-700 hover:bg-blue-800 text-white px-6 py-2.5 rounded-xl font-bold">Simpan Produk</button>
+                        </div>
+                    </form>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="text-slate-400 border-b border-slate-100 uppercase font-semibold">
+                                    <th class="p-3">Gambar</th>
+                                    <th class="p-3">Barcode</th>
+                                    <th class="p-3">Nama Produk</th>
+                                    <th class="p-3">Harga</th>
+                                    <th class="p-3">Stok</th>
+                                    <th class="p-3 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50">
+                                <template x-for="item in products" :key="item.id">
+                                    <tr>
+                                        <td class="p-3"><img :src="item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=100&q=80'" class="w-10 h-10 object-cover rounded-lg border"></td>
+                                        <td class="p-3 font-mono text-slate-500" x-text="item.barcode"></td>
+                                        <td class="p-3 font-semibold text-slate-800" x-text="item.name"></td>
+                                        <td class="p-3 text-blue-700 font-bold" x-text="formatRupiah(item.price)"></td>
+                                        <td class="p-3 text-slate-600" x-text="item.stock"></td>
+                                        <td class="p-3 text-center"><button @click="deleteProduct(item.id)" class="text-rose-600 hover:underline font-semibold">Hapus</button></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ADMIN TAB D: LAPORAN PENJUALAN -->
+                <div x-show="activeAdminTab === 'laporan'" class="bg-white rounded-2xl p-6 bca-shadow border border-slate-100 space-y-4">
+                    <h2 class="text-base font-bold text-slate-800">Riwayat Laporan Semua Penjualan (Offline & Online)</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="text-slate-400 border-b border-slate-100 uppercase font-semibold">
+                                    <th class="p-3">ID / Waktu</th>
+                                    <th class="p-3">Tipe / Pelanggan</th>
+                                    <th class="p-3">Item</th>
+                                    <th class="p-3">Total</th>
+                                    <th class="p-3 text-center">Struk</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50">
+                                <template x-for="trx in transactions" :key="trx.id">
+                                    <tr>
+                                        <td class="p-3 font-mono"><span class="font-bold text-slate-800" x-text="trx.id"></span><br><span class="text-[10px] text-slate-400" x-text="trx.date"></span></td>
+                                        <td class="p-3"><span class="px-2 py-0.5 rounded font-bold text-[10px]" :class="trx.type === 'Online' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'" x-text="trx.type"></span><br><span class="text-slate-600" x-text="trx.customerName"></span></td>
+                                        <td class="p-3 text-slate-600"><template x-for="i in trx.items"><div x-text="i.name + ' (' + i.qty + 'x)'"></div></template></td>
+                                        <td class="p-3 font-bold text-blue-700" x-text="formatRupiah(trx.finalTotal)"></td>
+                                        <td class="p-3 text-center"><button @click="printReceipt(trx)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1 rounded font-bold">🖨️ Struk</button></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ADMIN TAB E: SETTING USAHA & SUPABASE CONFIG -->
+                <template x-if="currentUser.role === 'admin'">
+                    <div x-show="activeAdminTab === 'settings'" class="bg-white rounded-2xl p-6 bca-shadow border border-slate-100 space-y-6 max-w-3xl mx-auto text-xs">
+                        <div>
+                            <h2 class="text-base font-bold text-slate-800">Konfigurasi Koneksi Supabase Database</h2>
+                            <p class="text-slate-400 mt-0.5">Masukkan URL & Anon Key dari Project Supabase Anda agar otomatis terhubung ke database cloud.</p>
+                        </div>
+                        <div class="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                            <div>
+                                <label class="block text-slate-600 font-semibold mb-1">Supabase URL</label>
+                                <input type="text" x-model="supabaseConfig.url" placeholder="https://xyzproject.supabase.co" class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-slate-600 font-semibold mb-1">Supabase Anon Key</label>
+                                <input type="password" x-model="supabaseConfig.key" placeholder="eyJhbGci..." class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-mono">
+                            </div>
+                            <button @click="saveSupabaseConfig" class="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2.5 rounded-xl font-bold transition">Hubungkan & Tes Supabase</button>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-100 space-y-4">
+                            <h2 class="text-base font-bold text-slate-800">Profil & Identitas Usaha (CRUD Struk)</h2>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-slate-600 font-semibold mb-1">Nama Usaha / Toko</label>
+                                    <input type="text" x-model="business.name" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                </div>
+                                <div>
+                                    <label class="block text-slate-600 font-semibold mb-1">Nomor WhatsApp Bisnis (Format 62...)</label>
+                                    <input type="text" x-model="business.whatsapp" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block text-slate-600 font-semibold mb-1">Alamat Toko</label>
+                                    <input type="text" x-model="business.address" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block text-slate-600 font-semibold mb-1">URL Logo Toko</label>
+                                    <input type="url" x-model="business.logo" placeholder="https://..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                </div>
+                            </div>
+                            <button @click="saveBusinessProfile" class="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2.5 rounded-xl font-bold transition">Simpan Profil Usaha</button>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-100 space-y-4">
+                            <h2 class="text-base font-bold text-slate-800">Ganti Password Akun Admin / Kasir</h2>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-slate-600 font-semibold mb-1">Password Baru</label>
+                                    <input type="password" x-model="newPassword" placeholder="••••••••" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                </div>
+                                <div class="flex items-end">
+                                    <button @click="updatePassword" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold transition w-full">Update Password</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Supabase Database DDL Script Box -->
+                        <div class="pt-4 border-t border-slate-100 space-y-2">
+                            <h2 class="text-base font-bold text-slate-800">SQL Script Database Supabase (Run di SQL Editor Supabase)</h2>
+                            <p class="text-slate-400">Salin skrip SQL ini dan jalankan di menu <strong class="text-slate-700">SQL Editor</strong> dashboard Supabase Anda:</p>
+                            <textarea readonly class="w-full bg-slate-900 text-emerald-400 font-mono text-[11px] p-4 rounded-2xl h-44 select-all">
+-- Skrip DDL Supabase untuk OmniPOS Pro
+CREATE TABLE IF NOT EXISTS products (
+    id BIGSERIAL PRIMARY KEY,
+    barcode TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    price NUMERIC NOT NULL,
+    stock INTEGER NOT NULL,
+    image TEXT
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+    id TEXT PRIMARY KEY,
+    date TEXT NOT NULL,
+    type TEXT NOT NULL,
+    customer_name TEXT,
+    phone TEXT,
+    address TEXT,
+    items JSONB NOT NULL,
+    final_total NUMERIC NOT NULL,
+    status TEXT DEFAULT 'Diterima'
+);
+
+-- Contoh Data Produk Awal
+INSERT INTO products (barcode, name, price, stock, image) VALUES 
+('8991', 'Aqua 600ml', 4000, 50, 'https://images.unsplash.com/photo-1548839140-29a749e1bc4c?auto=format&fit=crop&w=300&q=80'),
+('8992', 'Indomie Goreng', 3500, 100, 'https://images.unsplash.com/photo-1612927601601-6638404737fb?auto=format&fit=crop&w=300&q=80')
+ON CONFLICT (barcode) DO NOTHING;
+                            </textarea>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+    </main>
+
+    <!-- ================= MODAL LOGIN & AKUN DEMO ================= -->
+    <div x-show="openLoginModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full bca-shadow space-y-5 text-xs">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-slate-800 text-base">Login Akun OmniPOS Pro</h3>
+                <button @click="openLoginModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-base">✕</button>
+            </div>
+
+            <!-- Akun Demo Cepat -->
+            <div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 space-y-2">
+                <p class="font-bold text-blue-900">⚡ Coba Akun Demo Instan:</p>
+                <div class="flex gap-2">
+                    <button @click="loginDemo('admin')" class="flex-1 bg-blue-700 text-white py-1.5 rounded-xl font-bold">Login Admin</button>
+                    <button @click="loginDemo('kasir')" class="flex-1 bg-indigo-600 text-white py-1.5 rounded-xl font-bold">Login Kasir</button>
+                </div>
+            </div>
+
+            <form @submit.prevent="loginCustom" class="space-y-3">
+                <div>
+                    <label class="block text-slate-500 mb-1">Username / Email</label>
+                    <input type="text" x-model="loginForm.username" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-slate-500 mb-1">Password</label>
+                    <input type="password" x-model="loginForm.password" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                </div>
+                <button type="submit" class="w-full bg-blue-700 hover:bg-blue-800 text-white py-2.5 rounded-xl font-bold transition">Masuk Sistem</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= HIDDEN PRINTABLE RECEIPT TEMPLATE ================= -->
+    <div id="printable-receipt" class="hidden p-6 bg-white text-slate-900 font-mono text-xs max-w-xs mx-auto">
+        <div class="text-center space-y-1 pb-3 border-b border-dashed border-slate-400">
+            <h2 class="font-bold text-sm" x-text="receiptData.businessName"></h2>
+            <p class="text-[10px]" x-text="receiptData.businessAddress"></p>
+            <p class="text-[10px]">WA: <span x-text="receiptData.businessWhatsapp"></span></p>
+        </div>
+        <div class="py-2 space-y-1 border-b border-dashed border-slate-400">
+            <div class="flex justify-between"><span>No: <strong x-text="receiptData.id"></strong></span><span x-text="receiptData.date"></span></div>
+            <div class="flex justify-between"><span>Kasir/Tipe: <strong x-text="receiptData.type"></strong></span><span x-text="receiptData.customerName"></span></div>
+        </div>
+        <div class="py-2 space-y-1.5 border-b border-dashed border-slate-400">
+            <template x-for="item in receiptData.items">
+                <div class="flex justify-between">
+                    <div>
+                        <div x-text="item.name"></div>
+                        <div class="text-[10px] text-slate-500" x-text="item.qty + ' x ' + formatRupiah(item.price)"></div>
+                    </div>
+                    <div class="font-bold" x-text="formatRupiah(item.qty * item.price)"></div>
+                </div>
+            </template>
+        </div>
+        <div class="py-2 space-y-1 font-bold">
+            <div class="flex justify-between text-sm">
+                <span>TOTAL AKHIR:</span>
+                <span x-text="formatRupiah(receiptData.finalTotal)"></span>
+            </div>
+        </div>
+        <div class="text-center pt-3 text-[10px] text-slate-500">
+            <p>*** TERIMA KASIH ATAS KUNJUNGAN ANDA ***</p>
+            <p>Barang yang sudah dibeli tidak dapat ditukar.</p>
+        </div>
+    </div>
+
+    <!-- ================= JAVASCRIPT APP LOGIC ================= -->
+    <script>
+        function omniApp() {
+            return {
+                // State Navigasi
+                activeCustomerTab: 'katalog',
+                activeAdminTab: 'pos',
+                openLoginModal: false,
+                isOnlineDB: false,
+
+                // Profil Usaha & Supabase Config
+                business: JSON.parse(localStorage.getItem('omni_business')) || {
+                    name: 'Toko Makmur Jaya',
+                    address: 'Jl. Jendral Sudirman No. 45, Jakarta',
+                    whatsapp: '6281234567890',
+                    logo: ''
+                },
+                supabaseConfig: JSON.parse(localStorage.getItem('omni_supabase_config')) || { url: '', key: '' },
+                newPassword: '',
+
+                // Auth User
+                currentUser: JSON.parse(localStorage.getItem('omni_current_user')) || null,
+                loginForm: { username: '', password: '' },
+
+                // Data Produk & Keranjang
+                searchQuery: '',
+                isScanning: false,
+                products: JSON.parse(localStorage.getItem('omni_products')) || [
+                    { id: 1, barcode: '8991', name: 'Aqua 600ml', price: 4000, stock: 50, image: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4c?auto=format&fit=crop&w=300&q=80' },
+                    { id: 2, barcode: '8992', name: 'Indomie Goreng', price: 3500, stock: 100, image: 'https://images.unsplash.com/photo-1612927601601-6638404737fb?auto=format&fit=crop&w=300&q=80' }
+                ],
+                cart: [],
+                payment: 0,
+
+                // Pesanan Online & Laporan
+                customerOrderForm: { name: '', phone: '', address: '' },
+                trackingPhone: '',
+                searched: false,
+                customerOrdersResult: [],
+                onlineOrders: JSON.parse(localStorage.getItem('omni_online_orders')) || [],
+                transactions: JSON.parse(localStorage.getItem('omni_transactions')) || [],
+                
+                receiptData: { id: '', date: '', type: '', customerName: '', items: [], finalTotal: 0, businessName: '', businessAddress: '', businessWhatsapp: '' },
+                supabaseClient: null,
+
+                async initApp() {
+                    if (this.supabaseConfig.url && this.supabaseConfig.key) {
+                        try {
+                            this.supabaseClient = supabase.createClient(this.supabaseConfig.url, this.supabaseConfig.key);
+                            await this.fetchFromSupabase();
+                            this.isOnlineDB = true;
+                        } catch(e) { console.error('Supabase init error:', e); }
+                    }
+                },
+
+                async fetchFromSupabase() {
+                    if (!this.supabaseClient) return;
+                    let { data: prods } = await this.supabaseClient.from('products').select('*');
+                    if (prods && prods.length > 0) this.products = prods;
+
+                    let { data: trxs } = await this.supabaseClient.from('transactions').select('*');
+                    if (trxs && trxs.length > 0) {
+                        this.transactions = trxs.map(t => ({ ...t, customerName: t.customer_name, finalTotal: t.final_total }));
+                        this.onlineOrders = this.transactions.filter(t => t.type === 'Online');
+                    }
+                },
+
+                get filteredProducts() {
+                    if (!this.searchQuery) return this.products;
+                    return this.products.filter(p => p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || p.barcode.includes(this.searchQuery));
+                },
+
+                formatRupiah(val) {
+                    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+                },
+
+                addToCart(item) {
+                    if (item.stock <= 0) { alert('Stok produk habis!'); return; }
+                    let found = this.cart.find(i => i.id === item.id);
+                    if (found) {
+                        if (found.qty < item.stock) found.qty++;
+                        else alert('Stok tidak mencukupi!');
+                    } else {
+                        this.cart.push({ id: item.id, name: item.name, price: item.price, qty: 1 });
+                    }
+                },
+
+                increaseQty(idx) {
+                    let item = this.cart[idx];
+                    let prod = this.products.find(p => p.id === item.id);
+                    if (item.qty < prod.stock) item.qty++;
+                    else alert('Stok tidak mencukupi!');
+                },
+
+                decreaseQty(idx) {
+                    this.cart[idx].qty--;
+                    if (this.cart[idx].qty <= 0) this.cart.splice(idx, 1);
+                },
+
+                get cartTotal() {
+                    return this.cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
+                },
+
+                get changeMoney() {
+                    return this.payment >= this.cartTotal ? this.payment - this.cartTotal : 0;
+                },
+
+                // Auth Demo & Custom
+                loginDemo(role) {
+                    if (role === 'admin') {
+                        this.currentUser = { name: 'Administrator Demo', role: 'admin', username: 'admin' };
+                    } else {
+                        this.currentUser = { name: 'Kasir Shift 1', role: 'kasir', username: 'kasir' };
+                    }
+                    localStorage.setItem('omni_current_user', JSON.stringify(this.currentUser));
+                    this.openLoginModal = false;
+                    alert(`Berhasil login sebagai ${role.toUpperCase()}`);
+                },
+
+                loginCustom() {
+                    if (this.loginForm.username === 'admin') {
+                        this.currentUser = { name: 'Admin Toko', role: 'admin', username: 'admin' };
+                    } else {
+                        this.currentUser = { name: 'Kasir Toko', role: 'kasir', username: 'kasir' };
+                    }
+                    localStorage.setItem('omni_current_user', JSON.stringify(this.currentUser));
+                    this.openLoginModal = false;
+                },
+
+                logout() {
+                    this.currentUser = null;
+                    localStorage.removeItem('omni_current_user');
+                },
+
+                updatePassword() {
+                    if (!this.newPassword) { alert('Masukkan password baru!'); return; }
+                    alert('Password akun berhasil diperbarui!');
+                    this.newPassword = '';
+                },
+
+                // Konfigurasi Supabase & Bisnis
+                saveSupabaseConfig() {
+                    localStorage.setItem('omni_supabase_config', JSON.stringify(this.supabaseConfig));
+                    alert('Konfigurasi Supabase disimpan! Memuat ulang koneksi...');
+                    location.reload();
+                },
+
+                saveBusinessProfile() {
+                    localStorage.setItem('omni_business', JSON.stringify(this.business));
+                    alert('Profil usaha berhasil disimpan!');
+                },
+
+                // POS Offline Checkout
+                checkoutPOS() {
+                    if (this.payment < this.cartTotal) { alert('Uang pembayaran kurang!'); return; }
+                    let trx = {
+                        id: 'TRX-' + Date.now().toString().slice(-6),
+                        date: new Date().toLocaleString('id-ID'),
+                        type: 'Offline (POS)',
+                        customerName: 'Pelanggan Tunai',
+                        phone: '-',
+                        address: '-',
+                        items: JSON.parse(JSON.stringify(this.cart)),
+                        finalTotal: this.cartTotal,
+                        status: 'Diantar / Selesai'
+                    };
+
+                    this.transactions.unshift(trx);
+                    localStorage.setItem('omni_transactions', JSON.stringify(this.transactions));
+                    
+                    // Kurangi stok
+                    this.cart.forEach(ci => {
+                        let p = this.products.find(prod => prod.id === ci.id);
+                        if (p) p.stock -= ci.qty;
+                    });
+                    localStorage.setItem('omni_products', JSON.stringify(this.products));
+
+                    if (this.supabaseClient) {
+                        this.supabaseClient.from('transactions').insert([trx]).then(() => {});
+                    }
+
+                    this.printReceipt(trx);
+                    this.cart = [];
+                    this.payment = 0;
+                    alert('Transaksi POS Offline Berhasil Diselesaikan!');
+                },
+
+                // Online Order via WhatsApp
+                checkoutWhatsApp() {
+                    if (this.cart.length === 0) return;
+                    let trxId = 'ORD-' + Date.now().toString().slice(-6);
+                    let trx = {
+                        id: trxId,
+                        date: new Date().toLocaleString('id-ID'),
+                        type: 'Online',
+                        customerName: this.customerOrderForm.name,
+                        phone: this.customerOrderForm.phone,
+                        address: this.customerOrderForm.address,
+                        items: JSON.parse(JSON.stringify(this.cart)),
+                        finalTotal: this.cartTotal,
+                        status: 'Diterima'
+                    };
+
+                    this.onlineOrders.unshift(trx);
+                    this.transactions.unshift(trx);
+                    localStorage.setItem('omni_online_orders', JSON.stringify(this.onlineOrders));
+                    localStorage.setItem('omni_transactions', JSON.stringify(this.transactions));
+
+                    if (this.supabaseClient) {
+                        this.supabaseClient.from('transactions').insert([{
+                            id: trx.id, date: trx.date, type: trx.type, customer_name: trx.customerName,
+                            phone: trx.phone, address: trx.address, items: trx.items, final_total: trx.finalTotal, status: trx.status
+                        }]).then(() => {});
+                    }
+
+                    // Susun Pesan WhatsApp
+                    let message = `Halo *${this.business.name}*,
+
+Saya ingin memesan produk berikut:
+`;
+                    this.cart.forEach(i => { message += `- ${i.name} (${i.qty}x) = ${this.formatRupiah(i.price * i.qty)}
+`; });
+                    message += `
+*Total Tagihan: ${this.formatRupiah(this.cartTotal)}*
+
+Data Pemesan:
+Nama: ${this.customerOrderForm.name}
+No HP: ${this.customerOrderForm.phone}
+Alamat: ${this.customerOrderForm.address}
+
+ID Pesanan: ${trxId}`;
+
+                    let waUrl = `https://wa.me/${this.business.whatsapp}?text=` + encodeURIComponent(message);
+                    
+                    this.cart = [];
+                    this.customerOrderForm = { name: '', phone: '', address: '' };
+                    window.open(waUrl, '_blank');
+                    alert('Pesanan berhasil dibuat & dialihkan ke WhatsApp!');
+                },
+
+                updateOrderStatus(trx) {
+                    localStorage.setItem('omni_online_orders', JSON.stringify(this.onlineOrders));
+                    localStorage.setItem('omni_transactions', JSON.stringify(this.transactions));
+                    if (this.supabaseClient) {
+                        this.supabaseClient.from('transactions').update({ status: trx.status }).eq('id', trx.id).then(() => {});
+                    }
+                    alert(`Status pesanan ${trx.id} diperbarui menjadi: ${trx.status}`);
+                },
+
+                searchTracking() {
+                    this.searched = true;
+                    let allTrx = JSON.parse(localStorage.getItem('omni_transactions')) || [];
+                    this.customerOrdersResult = allTrx.filter(t => t.phone === this.trackingPhone && t.type === 'Online');
+                },
+
+                // Produk CRUD
+                productForm: { barcode: '', name: '', price: '', stock: '', image: '' },
+                saveProduct() {
+                    let newProd = {
+                        id: Date.now(),
+                        barcode: this.productForm.barcode,
+                        name: this.productForm.name,
+                        price: Number(this.productForm.price),
+                        stock: Number(this.productForm.stock),
+                        image: this.productForm.image || ''
+                    };
+                    this.products.push(newProd);
+                    localStorage.setItem('omni_products', JSON.stringify(this.products));
+                    if (this.supabaseClient) {
+                        this.supabaseClient.from('products').insert([newProd]).then(() => {});
+                    }
+                    this.productForm = { barcode: '', name: '', price: '', stock: '', image: '' };
+                    alert('Produk berhasil disimpan!');
+                },
+
+                deleteProduct(id) {
+                    if (confirm('Hapus produk ini?')) {
+                        this.products = this.products.filter(p => p.id !== id);
+                        localStorage.setItem('omni_products', JSON.stringify(this.products));
+                        if (this.supabaseClient) {
+                            this.supabaseClient.from('products').delete().eq('id', id).then(() => {});
+                        }
+                    }
+                },
+
+                // Cetak Struk
+                printReceipt(trx) {
+                    this.receiptData = {
+                        ...trx,
+                        businessName: this.business.name,
+                        businessAddress: this.business.address,
+                        businessWhatsapp: this.business.whatsapp
+                    };
+                    setTimeout(() => {
+                        window.print();
+                    }, 300);
+                },
+
+                // Barcode Scanner
+                startScanner() {
+                    this.isScanning = true;
+                    setTimeout(() => {
+                        Quagga.init({
+                            inputStream: { name: "Live", type: "LiveStream", target: document.querySelector('#interactive'), constraints: { facingMode: "environment" } },
+                            decoder: { readers: ["ean_reader", "code_128_reader", "upc_reader"] }
+                        }, (err) => {
+                            if (!err) Quagga.start();
+                        });
+                        Quagga.onDetected((result) => {
+                            let code = result.codeResult.code;
+                            let found = this.products.find(p => p.barcode === code);
+                            if (found) {
+                                this.addToCart(found);
+                                alert(`Barang terdeteksi: ${found.name}`);
+                                this.stopScanner();
+                            }
+                        });
+                    }, 300);
+                },
+
+                stopScanner() {
+                    if (this.isScanning) {
+                        try { Quagga.stop(); } catch(e) {}
+                        this.isScanning = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
