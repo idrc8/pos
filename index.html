@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="appMetaTitle">OmniPOS Pro - Enterprise CMS & POS</title>
+    <link id="appFavicon" rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2838/2838912.png">
+    <meta name="theme-color" id="metaThemeColor" content="#007AFF">
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --ios-bg: #F2F2F7;
+            --ios-card: #FFFFFF;
+            --ios-text: #1C1C1E;
+            --ios-gray: #8E8E93;
+            --ios-blue: #007AFF;
+            --ios-red: #FF3B30;
+            --ios-green: #34C759;
+            --ios-orange: #FF9500;
+            --ios-radius: 16px;
+        }
+        [data-theme="dark"] {
+            --ios-bg: #000000;
+            --ios-card: #1C1C1E;
+            --ios-text: #FFFFFF;
+            --ios-gray: #98989F;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+            background-color: var(--ios-bg);
+            color: var(--ios-text);
+            margin: 0; padding: 16px; padding-bottom: 110px;
+            transition: background 0.3s, color 0.3s;
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+        .card {
+            background-color: var(--ios-card);
+            border-radius: var(--ios-radius);
+            padding: 18px; margin-bottom: 14px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+        }
+        .btn {
+            background-color: var(--ios-blue); color: white; border: none;
+            padding: 10px 16px; border-radius: 12px; font-size: 14px;
+            font-weight: 600; cursor: pointer; text-decoration: none;
+            display: inline-block; text-align: center; transition: opacity 0.2s;
+        }
+        .btn:active { opacity: 0.7; }
+        .btn-success { background-color: var(--ios-green); }
+        .btn-danger { background-color: var(--ios-red); }
+        .btn-orange { background-color: var(--ios-orange); }
+        input, select, textarea {
+            width: 100%; padding: 12px; margin-bottom: 12px;
+            border: 1px solid #C7C7CC; border-radius: 10px;
+            font-size: 14px; box-sizing: border-box; background: var(--ios-card); color: var(--ios-text);
+        }
+        .hidden { display: none !important; }
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: white; }
+        .badge-pending { background: var(--ios-orange); }
+        .badge-process { background: var(--ios-blue); }
+        .badge-done { background: var(--ios-green); }
+
+        /* Responsive Grid & Banner */
+        .banner { width: 100%; height: 160px; border-radius: var(--ios-radius); object-fit: cover; margin-bottom: 14px; }
+        .grid-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+        .product-tile { background: var(--ios-card); border-radius: 12px; padding: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+        .product-tile img { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #printArea, #printArea * { visibility: visible; }
+            #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body data-theme="light">
+
+<div class="container">
+
+    <!-- 1. INSTALLATION SCREEN (HANYA MUNCUL SEKALI) -->
+    <div id="installScreen" class="card hidden">
+        <h2 style="margin-top:0;">🚀 Instalasi Awal OmniPOS CMS</h2>
+        <p style="font-size:13px; color:var(--ios-gray);">Sistem arsitektur mandiri. Hubungkan database Supabase Anda untuk menginisialisasi tabel secara otomatis.</p>
+        <label>Supabase URL</label>
+        <input type="text" id="installUrl" placeholder="https://xxx.supabase.co">
+        <label>Supabase Anon Key</label>
+        <input type="text" id="installKey" placeholder="eyJhbGciOi...">
+        <hr style="border:0; border-top:1px solid #C7C7CC; margin:15px 0;">
+        <h4>Buat Akun Super Admin</h4>
+        <input type="email" id="installAdminEmail" placeholder="admin@toko.com">
+        <input type="password" id="installAdminPass" placeholder="Password Admin">
+        <button class="btn btn-success" style="width:100%;" onclick="runFirstTimeInstallation()">Inisialisasi & Simpan Sistem</button>
+    </div>
+
+    <!-- 2. AUTH SCREEN (LOGIN / REGISTER / FORGOT) -->
+    <div id="authScreen" class="card hidden">
+        <h2 id="authTitle" style="margin-top:0; text-align:center;">🔐 Portal Member & Kasir</h2>
+        <input type="email" id="authEmail" placeholder="Email Pengguna">
+        <input type="password" id="authPassword" placeholder="Password">
+        <button class="btn" style="width:100%; margin-bottom:8px;" onclick="handleLogin()">Masuk Sistem</button>
+        <button class="btn btn-success" id="btnShowRegister" style="width:100%; margin-bottom:8px;" onclick="toggleAuthView('register')">Daftar Member Baru</button>
+        <button class="btn btn-orange" id="btnShowForgot" style="width:100%; font-size:12px;" onclick="handleForgotPassword()">Lupa Password?</button>
+        <button class="btn hidden" id="btnBackLogin" style="width:100%; background:var(--ios-gray); margin-top:8px;" onclick="toggleAuthView('login')">Kembali ke Login</button>
+    </div>
+
+    <!-- 3. MAIN APP DASHBOARD -->
+    <div id="appDashboard" class="hidden">
+        
+        <!-- HEADER USAHA -->
+        <div class="card" style="text-align:center; position:relative;">
+            <img id="storeLogoDisplay" src="" style="width:64px; height:64px; border-radius:50%; object-fit:cover; margin-bottom:6px; display:none;">
+            <h2 id="storeNameDisplay" style="margin:0 0 2px 0;">OmniStore</h2>
+            <p id="storeAddressDisplay" style="margin:0; font-size:13px; color:var(--ios-gray);">-</p>
+            <button class="btn btn-danger" style="position:absolute; top:12px; right:12px; padding:6px 10px; font-size:11px;" onclick="logout()">Keluar</button>
+        </div>
+
+        <!-- BANNER PROMOSI -->
+        <img id="storeBannerDisplay" class="banner hidden" src="" alt="Promo Banner">
+
+        <!-- NAVIGASI TAB UTAMA -->
+        <div style="display:flex; background:#E5E5EA; border-radius:12px; padding:4px; margin-bottom:14px; overflow-x:auto;">
+            <button class="btn" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('catalog')">🛍️ Katalog</button>
+            <button class="btn" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('pos')">📠 POS Kasir</button>
+            <button class="btn" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('orders')">📦 Pesanan</button>
+            <button class="btn" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('member')">👤 Member</button>
+            <button class="btn id-admin-menu hidden" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('admin')">⚙️ Admin CMS</button>
+        </div>
+
+        <!-- TAB 1: KATALOG & ORDER ONLINE -->
+        <div id="tabCatalog" class="tab-content">
+            <h3>Katalog Produk & Pemesanan WhatsApp</h3>
+            <div id="catalogGrid" class="grid-products">Memuat katalog...</div>
+        </div>
+
+        <!-- TAB 2: MESIN KASIR OFFLINE & ONLINE POS -->
+        <div id="tabPos" class="tab-content hidden">
+            <h3>OmniPOS Terminal (Offline / Online)</h3>
+            <div class="card">
+                <label>Scan Barcode / Pilih Produk</label>
+                <select id="posProductSelect" onchange="calcPosTotal()"></select>
+                <label>Kuantitas</label>
+                <input type="number" id="posQty" value="1" min="1" oninput="calcPosTotal()">
+                <label>Pelanggan (Offline/Online)</label>
+                <input type="text" id="posCustomerName" placeholder="Nama Pembeli / Umum">
+                <p><b>Total Tagihan: </b><span id="posTotalText">Rp 0</span></p>
+                <button class="btn btn-success" style="width:100%;" onclick="processPosCheckout()">Proses & Cetak Struk POS</button>
+            </div>
+        </div>
+
+        <!-- TAB 3: STATUS & MANAJEMEN PESANAN -->
+        <div id="tabOrders" class="tab-content hidden">
+            <h3>Pemantauan Status Pesanan</h3>
+            <div id="ordersListContainer">Memuat data pesanan...</div>
+        </div>
+
+        <!-- TAB 4: MEMBER AREA (PROFIL & RIWAYAT) -->
+        <div id="tabMember" class="tab-content hidden">
+            <div class="card">
+                <h3>Profil Member Saya</h3>
+                <label>Nama Lengkap</label>
+                <input type="text" id="memName">
+                <label>Nomor WhatsApp</label>
+                <input type="text" id="memPhone">
+                <label>Alamat Pengiriman</label>
+                <textarea id="memAddress"></textarea>
+                <label>URL Foto Profil</label>
+                <input type="text" id="memPhoto">
+                <button class="btn btn-success" style="width:100%; margin-bottom:10px;" onclick="updateMemberProfile()">Simpan Perubahan Profil</button>
+                <label>Ganti Password Member</label>
+                <input type="password" id="memNewPass" placeholder="Password baru">
+                <button class="btn btn-orange" style="width:100%;" onclick="updateMemberPassword()">Update Password Member</button>
+            </div>
+        </div>
+
+        <!-- TAB 5: ADMIN CMS & BACKUP -->
+        <div id="tabAdmin" class="tab-content hidden">
+            <!-- DASHBOARD KEUANGAN & STATISTIK -->
+            <div class="card" style="background:linear-gradient(135deg, #007AFF, #5856D6); color:white;">
+                <h3 style="margin-top:0;">📊 Dashboard & Keuangan Bulanan</h3>
+                <p>Total Penjualan Bulan Ini: <b id="dashMonthlySales">Rp 0</b></p>
+                <p>Total Transaksi Berhasil: <b id="dashTotalTx">0</b></p>
+            </div>
+
+            <div class="card">
+                <h3>Pengaturan Umum & Branding CMS</h3>
+                <label>Nama Usaha / Toko</label>
+                <input type="text" id="admStoreName">
+                <label>Alamat Usaha</label>
+                <input type="text" id="admStoreAddress">
+                <label>Nomor WhatsApp Admin (628...)</label>
+                <input type="text" id="admWa">
+                <label>URL Logo Toko</label>
+                <input type="text" id="admLogo">
+                <label>URL Banner Promosi</label>
+                <input type="text" id="admBanner">
+                <label>Browser Tab Title</label>
+                <input type="text" id="admTitle">
+                <label>Favicon URL</label>
+                <input type="text" id="admFavicon">
+                <label>Status Bar Theme Color (# HEX)</label>
+                <input type="text" id="admThemeColor">
+                <label>Pilihan Tema Sistem</label>
+                <select id="admThemeSelect" onchange="setSystemTheme(this.value)">
+                    <option value="light">Light Mode (iOS Clean)</option>
+                    <option value="dark">Dark Mode (OLED)</option>
+                </select>
+                <button class="btn btn-success" style="width:100%; margin-top:8px;" onclick="saveSystemSettings()">Simpan Pengaturan CMS</button>
+            </div>
+
+            <!-- BACKUP DATABASE -->
+            <div class="card">
+                <h3>Backup & Restore Database</h3>
+                <button class="btn btn-orange" style="width:100%; margin-bottom:8px;" onclick="backupDatabaseJson()">Unduh Backup Data (JSON)</button>
+            </div>
+
+            <!-- KELOLA KASIR / STAFF -->
+            <div class="card">
+                <h3>Tambah Akun Kasir / Staff</h3>
+                <input type="email" id="cashierEmail" placeholder="emailkasir@toko.com">
+                <input type="password" id="cashierPass" placeholder="Password kasir">
+                <button class="btn" style="width:100%;" onclick="createCashierAccount()">Buat Akun Kasir Baru</button>
+            </div>
+
+            <!-- CRUD PRODUK & BARCODE & EXPORT -->
+            <div class="card">
+                <h3 id="productFormHeader">Manajemen Produk (CRUD & Barcode)</h3>
+                <input type="hidden" id="editProductId">
+                <input type="text" id="prodName" placeholder="Nama Produk">
+                <input type="number" id="prodPrice" placeholder="Harga Jual">
+                <input type="number" id="prodStock" placeholder="Stok Produk">
+                <input type="text" id="prodBarcode" placeholder="Kode Barcode / SKU">
+                <input type="text" id="prodImg" placeholder="URL Gambar Produk">
+                <button class="btn" style="width:100%; margin-bottom:8px;" onclick="saveProductData()">Simpan / Restok Produk</button>
+                <button class="btn btn-orange" style="width:100%; font-size:12px;" onclick="exportProductsCSV()">Export Data Produk (CSV)</button>
+            </div>
+
+            <div class="card">
+                <h3>Daftar Stok Produk</h3>
+                <div id="adminProductList">Memuat data produk...</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- PRINT RECEIPT AREA -->
+<div id="printArea" class="hidden" style="padding: 15px; font-family: monospace; width: 280px; background: white; color: black;">
+    <h3 id="receiptStoreName" style="text-align:center; margin:0;">STORE</h3>
+    <p id="receiptStoreAddress" style="text-align:center; font-size:11px; margin:0 0 8px 0;">Address</p>
+    <hr style="border-top:dashed 1px black;">
+    <p id="receiptContent" style="font-size:12px;"></p>
+    <hr style="border-top:dashed 1px black;">
+    <p style="text-align:center; font-size:11px;">Terima Kasih Atas Kunjungan Anda!</p>
+</div>
+
+<script>
+    let sbUrl = localStorage.getItem('omni_sb_url') || '';
+    let sbKey = localStorage.getItem('omni_sb_key') || '';
+    let sb = sbUrl && sbKey ? supabase.createClient(sbUrl, sbKey) : null;
+    let currentUser = null;
+    let productsCache = [];
+
+    window.onload = async function() {
+        if (!sbUrl || !sbKey) {
+            document.getElementById('installScreen').classList.remove('hidden');
+        } else {
+            checkActiveSession();
+        }
+        let theme = localStorage.getItem('omni_theme') || 'light';
+        setSystemTheme(theme);
+    };
+
+    // INISIALISASI & SETUP PERTAMA KALI
+    async function runFirstTimeInstallation() {
+        let url = document.getElementById('installUrl').value.trim();
+        let key = document.getElementById('installKey').value.trim();
+        let email = document.getElementById('installAdminEmail').value.trim();
+        let pass = document.getElementById('installAdminPass').value.trim();
+
+        if (!url || !key || !email || !pass) {
+            alert('Semua field instalasi wajib diisi!');
+            return;
+        }
+
+        localStorage.setItem('omni_sb_url', url);
+        localStorage.setItem('omni_sb_key', key);
+        let tempSb = supabase.createClient(url, key);
+
+        let { error } = await tempSb.auth.signUp({ email, password: pass });
+        if (error && !error.message.includes('already registered')) {
+            alert('Gagal membuat akun admin: ' + error.message);
+            return;
+        }
+
+        // Simpan konfigurasi database awal ke localStorage flag agar instalasi tidak muncul lagi
+        localStorage.setItem('omni_installed', 'true');
+        alert('Instalasi Berhasil! Silakan login dengan akun admin Anda.');
+        location.reload();
+    }
+
+    async function checkActiveSession() {
+        let sessionStr = localStorage.getItem('omni_session');
+        if (sessionStr) {
+            currentUser = JSON.parse(sessionStr);
+            document.getElementById('authScreen').classList.add('hidden');
+            document.getElementById('appDashboard').classList.remove('hidden');
+            if (currentUser.email && currentUser.email.includes('admin')) {
+                document.querySelectorAll('.id-admin-menu').forEach(el => el.classList.remove('hidden'));
+            }
+            await initMainApp();
+        } else {
+            document.getElementById('authScreen').classList.remove('hidden');
+        }
+    }
+
+    function toggleAuthView(mode) {
+        if (mode === 'register') {
+            document.getElementById('authTitle').innerText = '📝 Pendaftaran Member Baru';
+            document.getElementById('btnShowRegister').classList.add('hidden');
+            document.getElementById('btnShowForgot').classList.add('hidden');
+            document.getElementById('btnBackLogin').classList.remove('hidden');
+        } else {
+            document.getElementById('authTitle').innerText = '🔐 Portal Member & Kasir';
+            document.getElementById('btnShowRegister').classList.remove('hidden');
+            document.getElementById('btnShowForgot').classList.remove('hidden');
+            document.getElementById('btnBackLogin').classList.add('hidden');
+        }
+    }
+
+    async function handleLogin() {
+        let email = document.getElementById('authEmail').value;
+        let password = document.getElementById('authPassword').value;
+        let isReg = document.getElementById('btnBackLogin').classList.contains('hidden') === false;
+
+        if (isReg) {
+            let { data, error } = await sb.auth.signUp({ email, password });
+            if (error) alert(error.message);
+            else { alert('Pendaftaran berhasil! Silakan login.'); toggleAuthView('login'); }
+        } else {
+            let { data, error } = await sb.auth.signInWithPassword({ email, password });
+            if (error) {
+                alert('Login Gagal: ' + error.message);
+            } else {
+                currentUser = data.user;
+                localStorage.setItem('omni_session', JSON.stringify(currentUser));
+                location.reload();
+            }
+        }
+    }
+
+    async function handleForgotPassword() {
+        let email = document.getElementById('authEmail').value;
+        if (!email) { alert('Masukkan email Anda terlebih dahulu pada kolom email!'); return; }
+        let { error } = await sb.auth.resetPasswordForEmail(email);
+        if (error) alert(error.message);
+        else alert('Instruksi pemulihan password telah dikirim ke email Anda.');
+    }
+
+    function logout() {
+        localStorage.removeItem('omni_session');
+        location.reload();
+    }
+
+    async function initMainApp() {
+        await loadSystemSettings();
+        await loadProducts();
+        await loadOrders();
+        await loadMemberProfile();
+    }
+
+    async function loadSystemSettings() {
+        let { data } = await sb.from('store_settings').select('*').eq('id', 1).single();
+        if (data) {
+            document.getElementById('storeNameDisplay').innerText = data.store_name;
+            document.getElementById('storeAddressDisplay').innerText = data.store_address;
+            if (data.store_logo) {
+                let logoImg = document.getElementById('storeLogoDisplay');
+                logoImg.src = data.store_logo;
+                logoImg.style.display = 'inline-block';
+            }
+            if (data.banner_url) {
+                let banner = document.getElementById('storeBannerDisplay');
+                banner.src = data.banner_url;
+                banner.classList.remove('hidden');
+            }
+            if (data.meta_title) {
+                document.getElementById('appMetaTitle').innerText = data.meta_title;
+                document.getElementById('admTitle').value = data.meta_title;
+            }
+            if (data.favicon_url) {
+                document.getElementById('appFavicon').href = data.favicon_url;
+                document.getElementById('admFavicon').value = data.favicon_url;
+            }
+            if (data.theme_color) {
+                document.getElementById('metaThemeColor').content = data.theme_color;
+                document.getElementById('admThemeColor').value = data.theme_color;
+            }
+            document.getElementById('admStoreName').value = data.store_name;
+            document.getElementById('admStoreAddress').value = data.store_address;
+            document.getElementById('admWa').value = data.whatsapp;
+            document.getElementById('admLogo').value = data.store_logo || '';
+            document.getElementById('admBanner').value = data.banner_url || '';
+        }
+    }
+
+    async function saveSystemSettings() {
+        let store_name = document.getElementById('admStoreName').value;
+        let store_address = document.getElementById('admStoreAddress').value;
+        let whatsapp = document.getElementById('admWa').value;
+        let store_logo = document.getElementById('admLogo').value;
+        let banner_url = document.getElementById('admBanner').value;
+        let meta_title = document.getElementById('admTitle').value;
+        let favicon_url = document.getElementById('admFavicon').value;
+        let theme_color = document.getElementById('admThemeColor').value;
+
+        let { error } = await sb.from('store_settings').update({
+            store_name, store_address, whatsapp, store_logo, banner_url, meta_title, favicon_url, theme_color
+        }).eq('id', 1);
+
+        if (error) alert(error.message);
+        else { alert('Pengaturan CMS Berhasil Disimpan!'); location.reload(); }
+    }
+
+    function setSystemTheme(theme) {
+        document.body.setAttribute('data-theme', theme);
+        localStorage.setItem('omni_theme', theme);
+        if(document.getElementById('admThemeSelect')) document.getElementById('admThemeSelect').value = theme;
+    }
+
+    async function loadProducts() {
+        let { data } = await sb.from('products').select('*').order('id', { ascending: false });
+        productsCache = data || [];
+        
+        let htmlCat = '';
+        let htmlPos = '';
+        let htmlAdmin = '';
+
+        productsCache.forEach(p => {
+            htmlCat += `<div class="product-tile">
+                <img src="${p.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200'}" alt="prod">
+                <h4 style="font-size:13px; margin:4px 0;">${p.name}</h4>
+                <p style="font-size:12px; color:var(--ios-gray); margin:0 0 8px 0;">Rp ${Number(p.price).toLocaleString('id-ID')}</p>
+                <button class="btn btn-success" style="padding:6px 10px; font-size:11px; width:100%;" onclick="orderWhatsApp('${p.name}', ${p.price})">Pesan WA</button>
+            </div>`;
+
+            htmlPos += `<option value="${p.id}" data-price="${p.price}" data-stock="${p.stock}">${p.name} (Stok: ${p.stock}) - Rp ${Number(p.price).toLocaleString('id-ID')}</option>`;
+
+            htmlAdmin += `<div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
+                <div><b>${p.name}</b><br><small>Rp ${Number(p.price).toLocaleString('id-ID')} | Stok: ${p.stock} | Barcode: ${p.barcode||'-'}</small></div>
+                <div>
+                    <button class="btn btn-orange" style="padding:6px 10px; font-size:11px;" onclick="editProduct(${p.id}, '${p.name}', ${p.price}, ${p.stock}, '${p.barcode||''}', '${p.image_url||''}')">Edit/Restok</button>
+                    <button class="btn btn-danger" style="padding:6px 10px; font-size:11px;" onclick="deleteProduct(${p.id})">Hapus</button>
+                </div>
+            </div>`;
+        });
+
+        document.getElementById('catalogGrid').innerHTML = htmlCat || '<p>Belum ada produk.</p>';
+        document.getElementById('posProductSelect').innerHTML = htmlPos;
+        document.getElementById('adminProductList').innerHTML = htmlAdmin || '<p>Belum ada produk.</p>';
+        calcPosTotal();
+    }
+
+    async function saveProductData() {
+        let id = document.getElementById('editProductId').value;
+        let name = document.getElementById('prodName').value;
+        let price = Number(document.getElementById('prodPrice').value);
+        let stock = Number(document.getElementById('prodStock').value);
+        let barcode = document.getElementById('prodBarcode').value;
+        let image_url = document.getElementById('prodImg').value;
+
+        if (!name || !price) { alert('Nama dan Harga wajib diisi!'); return; }
+
+        if (id) {
+            await sb.from('products').update({ name, price, stock, barcode, image_url }).eq('id', id);
+        } else {
+            await sb.from('products').insert([{ name, price, stock, barcode, image_url }]);
+        }
+        document.getElementById('editProductId').value = '';
+        document.getElementById('prodName').value = '';
+        document.getElementById('prodPrice').value = '';
+        document.getElementById('prodStock').value = '';
+        document.getElementById('prodBarcode').value = '';
+        document.getElementById('prodImg').value = '';
+        loadProducts();
+    }
+
+    function editProduct(id, name, price, stock, barcode, img) {
+        document.getElementById('editProductId').value = id;
+        document.getElementById('prodName').value = name;
+        document.getElementById('prodPrice').value = price;
+        document.getElementById('prodStock').value = stock;
+        document.getElementById('prodBarcode').value = barcode;
+        document.getElementById('prodImg').value = img;
+        document.getElementById('productFormHeader').innerText = 'Edit / Restok Produk (ID: ' + id + ')';
+    }
+
+    async function deleteProduct(id) {
+        if (confirm('Hapus produk ini?')) {
+            await sb.from('products').delete().eq('id', id);
+            loadProducts();
+        }
+    }
+
+    function calcPosTotal() {
+        let sel = document.getElementById('posProductSelect');
+        let opt = sel.options[sel.selectedIndex];
+        if (!opt) return;
+        let price = Number(opt.getAttribute('data-price'));
+        let qty = Number(document.getElementById('posQty').value);
+        document.getElementById('posTotalText').innerText = `Rp ${Number(price * qty).toLocaleString('id-ID')}`;
+    }
+
+    async function processPosCheckout() {
+        let sel = document.getElementById('posProductSelect');
+        let opt = sel.options[sel.selectedIndex];
+        if (!opt) return;
+        let prodId = opt.value;
+        let prodName = opt.text.split(' (')[0];
+        let price = Number(opt.getAttribute('data-price'));
+        let currentStock = Number(opt.getAttribute('data-stock'));
+        let qty = Number(document.getElementById('posQty').value);
+        let customer = document.getElementById('posCustomerName').value || 'Pelanggan Umum';
+
+        if (qty > currentStock) {
+            alert('Stok produk tidak mencukupi!');
+            return;
+        }
+
+        let total = price * qty;
+
+        // Catat order & kurangi stok
+        await sb.from('orders').insert([{
+            customer_name: customer, product_summary: `${qty}x ${prodName}`, total, status: 'Selesai / Diantar', user_email: currentUser.email
+        }]);
+        await sb.from('products').update({ stock: currentStock - qty }).eq('id', prodId);
+
+        loadProducts();
+        loadOrders();
+
+        // Cetak Struk
+        document.getElementById('receiptStoreName').innerText = document.getElementById('storeNameDisplay').innerText;
+        document.getElementById('receiptStoreAddress').innerText = document.getElementById('storeAddressDisplay').innerText;
+        document.getElementById('receiptContent').innerHTML = `Pelanggan: ${customer}<br>Item: ${qty}x ${prodName}<br>Total: Rp ${total.toLocaleString('id-ID')}<br>Status: Lunas (POS)`;
+        window.print();
+    }
+
+    async function orderWhatsApp(prodName, price) {
+        let { data } = await sb.from('store_settings').select('whatsapp').eq('id', 1).single();
+        let wa = data ? data.whatsapp : '628123456789';
+
+        await sb.from('orders').insert([{
+            customer_name: currentUser.email, product_summary: prodName, total: price, status: 'Diterima', user_email: currentUser.email
+        }]);
+        loadOrders();
+
+        let msg = encodeURIComponent(`Halo Admin, saya ingin memesan produk *${prodName}* seharga Rp ${Number(price).toLocaleString('id-ID')}. Mohon konfirmasinya.`);
+        window.open(`https://wa.me/${wa}?text=${msg}`, '_blank');
+    }
+
+    async function loadOrders() {
+        let { data } = await sb.from('orders').select('*').order('id', { ascending: false });
+        let html = '';
+        let monthlySales = 0;
+        let totalTx = 0;
+
+        if (data && data.length > 0) {
+            data.forEach(o => {
+                monthlySales += Number(o.total);
+                totalTx += 1;
+
+                let badge = o.status === 'Diterima' ? 'badge-pending' : (o.status === 'Dipersiapkan' ? 'badge-process' : 'badge-done');
+                html += `<div class="card" style="padding:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <b>#${o.id} - ${o.customer_name}</b>
+                        <span class="badge ${badge}">${o.status}</span>
+                    </div>
+                    <p style="margin:4px 0; font-size:13px;">${o.product_summary} (Rp ${Number(o.total).toLocaleString('id-ID')})</p>
+                    <select onchange="updateOrderStatus(${o.id}, this.value)" style="margin:0; padding:4px; font-size:11px;">
+                        <option value="Diterima" ${o.status==='Diterima'?'selected':''}>Diterima</option>
+                        <option value="Dipersiapkan" ${o.status==='Dipersiapkan'?'selected':''}>Dipersiapkan</option>
+                        <option value="Selesai / Diantar" ${o.status==='Selesai / Diantar'?'selected':''}>Selesai / Diantar</option>
+                    </select>
+                </div>`;
+            });
+        } else {
+            html = '<p>Belum ada riwayat pesanan.</p>';
+        }
+
+        document.getElementById('ordersListContainer').innerHTML = html;
+        document.getElementById('dashMonthlySales').innerText = `Rp ${monthlySales.toLocaleString('id-ID')}`;
+        document.getElementById('dashTotalTx').innerText = totalTx;
+    }
+
+    async function updateOrderStatus(id, status) {
+        await sb.from('orders').update({ status }).eq('id', id);
+        loadOrders();
+    }
+
+    async function loadMemberProfile() {
+        let { data } = await sb.from('members').select('*').eq('email', currentUser.email).single();
+        if (data) {
+            document.getElementById('memName').value = data.name || '';
+            document.getElementById('memPhone').value = data.phone || '';
+            document.getElementById('memAddress').value = data.address || '';
+            document.getElementById('memPhoto').value = data.photo_url || '';
+        }
+    }
+
+    async function updateMemberProfile() {
+        let name = document.getElementById('memName').value;
+        let phone = document.getElementById('memPhone').value;
+        let address = document.getElementById('memAddress').value;
+        let photo_url = document.getElementById('memPhoto').value;
+
+        let { data: existing } = await sb.from('members').select('*').eq('email', currentUser.email).single();
+        if (existing) {
+            await sb.from('members').update({ name, phone, address, photo_url }).eq('email', currentUser.email);
+        } else {
+            await sb.from('members').insert([{ email: currentUser.email, name, phone, address, photo_url }]);
+        }
+        alert('Profil member berhasil diperbarui!');
+    }
+
+    async function updateMemberPassword() {
+        let password = document.getElementById('memNewPass').value;
+        if (!password) { alert('Masukkan password baru!'); return; }
+        let { error } = await sb.auth.updateUser({ password });
+        if (error) alert(error.message);
+        else alert('Password member berhasil diubah!');
+    }
+
+    async function createCashierAccount() {
+        let email = document.getElementById('cashierEmail').value;
+        let password = document.getElementById('cashierPass').value;
+        if (!email || !password) { alert('Isi email dan password kasir!'); return; }
+        let { error } = await sb.auth.signUp({ email, password });
+        if (error) alert(error.message);
+        else alert('Akun Kasir berhasil dibuat!');
+    }
+
+    async function exportProductsCSV() {
+        let { data } = await sb.from('products').select('*');
+        let csv = 'ID,Name,Price,Stock,Barcode\n';
+        data.forEach(p => { csv += `${p.id},"${p.name}",${p.price},${p.stock},"${p.barcode||''}"\n`; });
+        let blob = new Blob([csv], { type: 'text/csv' });
+        let url = window.URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url; a.download = 'products_export.csv'; a.click();
+    }
+
+    async function backupDatabaseJson() {
+        let { data: p } = await sb.from('products').select('*');
+        let { data: o } = await sb.from('orders').select('*');
+        let { data: s } = await sb.from('store_settings').select('*');
+        let backup = { store_settings: s, products: p, orders: o };
+        let blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        let url = window.URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url; a.download = 'omnipos_database_backup.json'; a.click();
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        if(tab === 'catalog') document.getElementById('tabCatalog').classList.remove('hidden');
+        if(tab === 'pos') document.getElementById('tabPos').classList.remove('hidden');
+        if(tab === 'orders') document.getElementById('tabOrders').classList.remove('hidden');
+        if(tab === 'member') document.getElementById('tabMember').classList.remove('hidden');
+        if(tab === 'admin') document.getElementById('tabAdmin').classList.remove('hidden');
+    }
+</script>
+
+</body>
+</html>
