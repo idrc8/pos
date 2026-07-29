@@ -3,69 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title id="appMetaTitle">OmniPOS Pro - Enterprise CMS & POS</title>
+    <title id="appMetaTitle">OmniPOS Pro - BCA Blue Edition</title>
     <link id="appFavicon" rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2838/2838912.png">
-    <meta name="theme-color" id="metaThemeColor" content="#007AFF">
+    <meta name="theme-color" id="metaThemeColor" content="#0055A5">
     <link rel="manifest" href="manifest.json">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
-            --ios-bg: #F2F2F7;
-            --ios-card: #FFFFFF;
-            --ios-text: #1C1C1E;
-            --ios-gray: #8E8E93;
-            --ios-blue: #007AFF;
-            --ios-red: #FF3B30;
-            --ios-green: #34C759;
-            --ios-orange: #FF9500;
-            --ios-radius: 16px;
+            --bca-bg: #F4F6F9;
+            --bca-card: #FFFFFF;
+            --bca-text: #1E293B;
+            --bca-gray: #64748B;
+            --bca-blue: #0055A5;
+            --bca-blue-hover: #004080;
+            --bca-red: #EF4444;
+            --bca-green: #10B981;
+            --bca-orange: #F59E0B;
+            --bca-radius: 12px;
         }
         [data-theme="dark"] {
-            --ios-bg: #000000;
-            --ios-card: #1C1C1E;
-            --ios-text: #FFFFFF;
-            --ios-gray: #98989F;
+            --bca-bg: #0F172A;
+            --bca-card: #1E293B;
+            --bca-text: #F8FAFC;
+            --bca-gray: #94A3B8;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
-            background-color: var(--ios-bg);
-            color: var(--ios-text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bca-bg);
+            color: var(--bca-text);
             margin: 0; padding: 16px; padding-bottom: 110px;
             transition: background 0.3s, color 0.3s;
         }
         .container { max-width: 600px; margin: 0 auto; }
         .card {
-            background-color: var(--ios-card);
-            border-radius: var(--ios-radius);
+            background-color: var(--bca-card);
+            border-radius: var(--bca-radius);
             padding: 18px; margin-bottom: 14px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+            box-shadow: 0 4px 12px rgba(0,85,165,0.06);
+            border: 1px solid rgba(0,85,165,0.08);
         }
         .btn {
-            background-color: var(--ios-blue); color: white; border: none;
-            padding: 10px 16px; border-radius: 12px; font-size: 14px;
+            background-color: var(--bca-blue); color: white; border: none;
+            padding: 10px 16px; border-radius: 8px; font-size: 14px;
             font-weight: 600; cursor: pointer; text-decoration: none;
-            display: inline-block; text-align: center; transition: opacity 0.2s;
+            display: inline-block; text-align: center; transition: background 0.2s;
         }
-        .btn:active { opacity: 0.7; }
-        .btn-success { background-color: var(--ios-green); }
-        .btn-danger { background-color: var(--ios-red); }
-        .btn-orange { background-color: var(--ios-orange); }
+        .btn:hover { background-color: var(--bca-blue-hover); }
+        .btn-success { background-color: var(--bca-green); }
+        .btn-danger { background-color: var(--bca-red); }
+        .btn-orange { background-color: var(--bca-orange); }
         input, select, textarea {
             width: 100%; padding: 12px; margin-bottom: 12px;
-            border: 1px solid #C7C7CC; border-radius: 10px;
-            font-size: 14px; box-sizing: border-box; background: var(--ios-card); color: var(--ios-text);
+            border: 1px solid #CBD5E1; border-radius: 8px;
+            font-size: 14px; box-sizing: border-box; background: var(--bca-card); color: var(--bca-text);
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none; border-color: var(--bca-blue);
+            box-shadow: 0 0 0 3px rgba(0,85,165,0.15);
         }
         .hidden { display: none !important; }
         .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: white; }
-        .badge-pending { background: var(--ios-orange); }
-        .badge-process { background: var(--ios-blue); }
-        .badge-done { background: var(--ios-green); }
+        .badge-pending { background: var(--bca-orange); }
+        .badge-process { background: var(--bca-blue); }
+        .badge-done { background: var(--bca-green); }
 
-        /* Responsive Grid & Banner */
-        .banner { width: 100%; height: 160px; border-radius: var(--ios-radius); object-fit: cover; margin-bottom: 14px; }
+        .banner { width: 100%; height: 160px; border-radius: var(--bca-radius); object-fit: cover; margin-bottom: 14px; }
         .grid-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
-        .product-tile { background: var(--ios-card); border-radius: 12px; padding: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
-        .product-tile img { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; }
+        .product-tile { background: var(--bca-card); border-radius: 10px; padding: 12px; text-align: center; border: 1px solid #E2E8F0; }
+        .product-tile img { width: 100%; height: 100px; object-fit: cover; border-radius: 6px; margin-bottom: 8px; }
 
         @media print {
             body * { visibility: hidden; }
@@ -78,40 +83,25 @@
 
 <div class="container">
 
-    <!-- 1. INSTALLATION SCREEN (HANYA MUNCUL SEKALI) -->
-    <div id="installScreen" class="card hidden">
-        <h2 style="margin-top:0;">🚀 Instalasi Awal OmniPOS CMS</h2>
-        <p style="font-size:13px; color:var(--ios-gray);">Sistem arsitektur mandiri. Hubungkan database Supabase Anda untuk menginisialisasi tabel secara otomatis.</p>
-        <label>Supabase URL</label>
-        <input type="text" id="installUrl" placeholder="https://xxx.supabase.co">
-        <label>Supabase Anon Key</label>
-        <input type="text" id="installKey" placeholder="eyJhbGciOi...">
-        <hr style="border:0; border-top:1px solid #C7C7CC; margin:15px 0;">
-        <h4>Buat Akun Super Admin</h4>
-        <input type="email" id="installAdminEmail" placeholder="admin@toko.com">
-        <input type="password" id="installAdminPass" placeholder="Password Admin">
-        <button class="btn btn-success" style="width:100%;" onclick="runFirstTimeInstallation()">Inisialisasi & Simpan Sistem</button>
-    </div>
-
-    <!-- 2. AUTH SCREEN (LOGIN / REGISTER / FORGOT) -->
-    <div id="authScreen" class="card hidden">
-        <h2 id="authTitle" style="margin-top:0; text-align:center;">🔐 Portal Member & Kasir</h2>
+    <!-- AUTH SCREEN (LOGIN / REGISTER / FORGOT) -->
+    <div id="authScreen" class="card">
+        <h2 id="authTitle" style="margin-top:0; text-align:center; color:var(--bca-blue);">🔐 Portal Member & Kasir OmniPOS</h2>
         <input type="email" id="authEmail" placeholder="Email Pengguna">
         <input type="password" id="authPassword" placeholder="Password">
         <button class="btn" style="width:100%; margin-bottom:8px;" onclick="handleLogin()">Masuk Sistem</button>
         <button class="btn btn-success" id="btnShowRegister" style="width:100%; margin-bottom:8px;" onclick="toggleAuthView('register')">Daftar Member Baru</button>
         <button class="btn btn-orange" id="btnShowForgot" style="width:100%; font-size:12px;" onclick="handleForgotPassword()">Lupa Password?</button>
-        <button class="btn hidden" id="btnBackLogin" style="width:100%; background:var(--ios-gray); margin-top:8px;" onclick="toggleAuthView('login')">Kembali ke Login</button>
+        <button class="btn hidden" id="btnBackLogin" style="width:100%; background:var(--bca-gray); margin-top:8px;" onclick="toggleAuthView('login')">Kembali ke Login</button>
     </div>
 
-    <!-- 3. MAIN APP DASHBOARD -->
+    <!-- MAIN APP DASHBOARD -->
     <div id="appDashboard" class="hidden">
         
         <!-- HEADER USAHA -->
-        <div class="card" style="text-align:center; position:relative;">
+        <div class="card" style="text-align:center; position:relative; border-top: 4px solid var(--bca-blue);">
             <img id="storeLogoDisplay" src="" style="width:64px; height:64px; border-radius:50%; object-fit:cover; margin-bottom:6px; display:none;">
-            <h2 id="storeNameDisplay" style="margin:0 0 2px 0;">OmniStore</h2>
-            <p id="storeAddressDisplay" style="margin:0; font-size:13px; color:var(--ios-gray);">-</p>
+            <h2 id="storeNameDisplay" style="margin:0 0 2px 0; color:var(--bca-blue);">OmniStore</h2>
+            <p id="storeAddressDisplay" style="margin:0; font-size:13px; color:var(--bca-gray);">-</p>
             <button class="btn btn-danger" style="position:absolute; top:12px; right:12px; padding:6px 10px; font-size:11px;" onclick="logout()">Keluar</button>
         </div>
 
@@ -119,45 +109,45 @@
         <img id="storeBannerDisplay" class="banner hidden" src="" alt="Promo Banner">
 
         <!-- NAVIGASI TAB UTAMA -->
-        <div style="display:flex; background:#E5E5EA; border-radius:12px; padding:4px; margin-bottom:14px; overflow-x:auto;">
-            <button class="btn" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('catalog')">🛍️ Katalog</button>
-            <button class="btn" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('pos')">📠 POS Kasir</button>
-            <button class="btn" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('orders')">📦 Pesanan</button>
-            <button class="btn" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('member')">👤 Member</button>
-            <button class="btn id-admin-menu hidden" style="flex:1; background:transparent; color:var(--ios-text); box-shadow:none; font-size:12px;" onclick="switchTab('admin')">⚙️ Admin CMS</button>
+        <div style="display:flex; background:#E2E8F0; border-radius:10px; padding:4px; margin-bottom:14px; overflow-x:auto;">
+            <button class="btn" style="flex:1; background:transparent; color:var(--bca-text); box-shadow:none; font-size:12px;" onclick="switchTab('catalog')">🛍️ Katalog</button>
+            <button class="btn" style="flex:1; background:transparent; color:var(--bca-text); box-shadow:none; font-size:12px;" onclick="switchTab('pos')">📠 POS Kasir</button>
+            <button class="btn" style="flex:1; background:transparent; color:var(--bca-text); box-shadow:none; font-size:12px;" onclick="switchTab('orders')">📦 Pesanan</button>
+            <button class="btn" style="flex:1; background:transparent; color:var(--bca-text); box-shadow:none; font-size:12px;" onclick="switchTab('member')">👤 Member</button>
+            <button class="btn id-admin-menu hidden" style="flex:1; background:transparent; color:var(--bca-text); box-shadow:none; font-size:12px;" onclick="switchTab('admin')">⚙️ Admin CMS</button>
         </div>
 
         <!-- TAB 1: KATALOG & ORDER ONLINE -->
         <div id="tabCatalog" class="tab-content">
-            <h3>Katalog Produk & Pemesanan WhatsApp</h3>
+            <h3 style="color:var(--bca-blue);">Katalog Produk & Pemesanan WhatsApp</h3>
             <div id="catalogGrid" class="grid-products">Memuat katalog...</div>
         </div>
 
         <!-- TAB 2: MESIN KASIR OFFLINE & ONLINE POS -->
         <div id="tabPos" class="tab-content hidden">
-            <h3>OmniPOS Terminal (Offline / Online)</h3>
+            <h3 style="color:var(--bca-blue);">OmniPOS Terminal (Offline / Online)</h3>
             <div class="card">
-                <label>Scan Barcode / Pilih Produk</label>
+                <label>Pilih Produk / Barcode</label>
                 <select id="posProductSelect" onchange="calcPosTotal()"></select>
                 <label>Kuantitas</label>
                 <input type="number" id="posQty" value="1" min="1" oninput="calcPosTotal()">
-                <label>Pelanggan (Offline/Online)</label>
+                <label>Nama Pelanggan</label>
                 <input type="text" id="posCustomerName" placeholder="Nama Pembeli / Umum">
-                <p><b>Total Tagihan: </b><span id="posTotalText">Rp 0</span></p>
+                <p><b>Total Tagihan: </b><span id="posTotalText" style="color:var(--bca-blue); font-size:18px;">Rp 0</span></p>
                 <button class="btn btn-success" style="width:100%;" onclick="processPosCheckout()">Proses & Cetak Struk POS</button>
             </div>
         </div>
 
         <!-- TAB 3: STATUS & MANAJEMEN PESANAN -->
         <div id="tabOrders" class="tab-content hidden">
-            <h3>Pemantauan Status Pesanan</h3>
+            <h3 style="color:var(--bca-blue);">Pemantauan Status Pesanan</h3>
             <div id="ordersListContainer">Memuat data pesanan...</div>
         </div>
 
         <!-- TAB 4: MEMBER AREA (PROFIL & RIWAYAT) -->
         <div id="tabMember" class="tab-content hidden">
             <div class="card">
-                <h3>Profil Member Saya</h3>
+                <h3 style="color:var(--bca-blue);">Profil Member Saya</h3>
                 <label>Nama Lengkap</label>
                 <input type="text" id="memName">
                 <label>Nomor WhatsApp</label>
@@ -176,14 +166,14 @@
         <!-- TAB 5: ADMIN CMS & BACKUP -->
         <div id="tabAdmin" class="tab-content hidden">
             <!-- DASHBOARD KEUANGAN & STATISTIK -->
-            <div class="card" style="background:linear-gradient(135deg, #007AFF, #5856D6); color:white;">
+            <div class="card" style="background:linear-gradient(135deg, #0055A5, #003366); color:white;">
                 <h3 style="margin-top:0;">📊 Dashboard & Keuangan Bulanan</h3>
                 <p>Total Penjualan Bulan Ini: <b id="dashMonthlySales">Rp 0</b></p>
                 <p>Total Transaksi Berhasil: <b id="dashTotalTx">0</b></p>
             </div>
 
             <div class="card">
-                <h3>Pengaturan Umum & Branding CMS</h3>
+                <h3 style="color:var(--bca-blue);">Pengaturan Umum & Branding CMS</h3>
                 <label>Nama Usaha / Toko</label>
                 <input type="text" id="admStoreName">
                 <label>Alamat Usaha</label>
@@ -202,21 +192,21 @@
                 <input type="text" id="admThemeColor">
                 <label>Pilihan Tema Sistem</label>
                 <select id="admThemeSelect" onchange="setSystemTheme(this.value)">
-                    <option value="light">Light Mode (iOS Clean)</option>
+                    <option value="light">BCA Blue Clean (Light)</option>
                     <option value="dark">Dark Mode (OLED)</option>
                 </select>
-                <button class="btn btn-success" style="width:100%; margin-top:8px;" onclick="saveSystemSettings()">Simpan Pengaturan CMS</button>
+                <button class="btn" style="width:100%; margin-top:8px;" onclick="saveSystemSettings()">Simpan Pengaturan CMS</button>
             </div>
 
             <!-- BACKUP DATABASE -->
             <div class="card">
-                <h3>Backup & Restore Database</h3>
+                <h3 style="color:var(--bca-blue);">Backup & Restore Database</h3>
                 <button class="btn btn-orange" style="width:100%; margin-bottom:8px;" onclick="backupDatabaseJson()">Unduh Backup Data (JSON)</button>
             </div>
 
             <!-- KELOLA KASIR / STAFF -->
             <div class="card">
-                <h3>Tambah Akun Kasir / Staff</h3>
+                <h3 style="color:var(--bca-blue);">Tambah Akun Kasir / Staff</h3>
                 <input type="email" id="cashierEmail" placeholder="emailkasir@toko.com">
                 <input type="password" id="cashierPass" placeholder="Password kasir">
                 <button class="btn" style="width:100%;" onclick="createCashierAccount()">Buat Akun Kasir Baru</button>
@@ -224,7 +214,7 @@
 
             <!-- CRUD PRODUK & BARCODE & EXPORT -->
             <div class="card">
-                <h3 id="productFormHeader">Manajemen Produk (CRUD & Barcode)</h3>
+                <h3 id="productFormHeader" style="color:var(--bca-blue);">Manajemen Produk (CRUD & Barcode)</h3>
                 <input type="hidden" id="editProductId">
                 <input type="text" id="prodName" placeholder="Nama Produk">
                 <input type="number" id="prodPrice" placeholder="Harga Jual">
@@ -236,7 +226,7 @@
             </div>
 
             <div class="card">
-                <h3>Daftar Stok Produk</h3>
+                <h3 style="color:var(--bca-blue);">Daftar Stok Produk</h3>
                 <div id="adminProductList">Memuat data produk...</div>
             </div>
         </div>
@@ -255,49 +245,19 @@
 </div>
 
 <script>
-    let sbUrl = localStorage.getItem('omni_sb_url') || '';
-    let sbKey = localStorage.getItem('omni_sb_key') || '';
-    let sb = sbUrl && sbKey ? supabase.createClient(sbUrl, sbKey) : null;
+    // HARDCODE SUPABASE CONFIG (TIDAK PERLU INSTALL ULANG)
+    const sbUrl = 'https://bbdddskcowcdnwyxppbi.supabase.co';
+    const sbKey = 'sb_publishable_WK1TtlABGQy55XJan7Uphw_D_P_sKnV';
+    const sb = supabase.createClient(sbUrl, sbKey);
+    
     let currentUser = null;
     let productsCache = [];
 
     window.onload = async function() {
-        if (!sbUrl || !sbKey) {
-            document.getElementById('installScreen').classList.remove('hidden');
-        } else {
-            checkActiveSession();
-        }
+        checkActiveSession();
         let theme = localStorage.getItem('omni_theme') || 'light';
         setSystemTheme(theme);
     };
-
-    // INISIALISASI & SETUP PERTAMA KALI
-    async function runFirstTimeInstallation() {
-        let url = document.getElementById('installUrl').value.trim();
-        let key = document.getElementById('installKey').value.trim();
-        let email = document.getElementById('installAdminEmail').value.trim();
-        let pass = document.getElementById('installAdminPass').value.trim();
-
-        if (!url || !key || !email || !pass) {
-            alert('Semua field instalasi wajib diisi!');
-            return;
-        }
-
-        localStorage.setItem('omni_sb_url', url);
-        localStorage.setItem('omni_sb_key', key);
-        let tempSb = supabase.createClient(url, key);
-
-        let { error } = await tempSb.auth.signUp({ email, password: pass });
-        if (error && !error.message.includes('already registered')) {
-            alert('Gagal membuat akun admin: ' + error.message);
-            return;
-        }
-
-        // Simpan konfigurasi database awal ke localStorage flag agar instalasi tidak muncul lagi
-        localStorage.setItem('omni_installed', 'true');
-        alert('Instalasi Berhasil! Silakan login dengan akun admin Anda.');
-        location.reload();
-    }
 
     async function checkActiveSession() {
         let sessionStr = localStorage.getItem('omni_session');
@@ -305,7 +265,7 @@
             currentUser = JSON.parse(sessionStr);
             document.getElementById('authScreen').classList.add('hidden');
             document.getElementById('appDashboard').classList.remove('hidden');
-            if (currentUser.email && currentUser.email.includes('admin')) {
+            if (currentUser.email && (currentUser.email.includes('admin') || currentUser.email.includes('owner'))) {
                 document.querySelectorAll('.id-admin-menu').forEach(el => el.classList.remove('hidden'));
             }
             await initMainApp();
@@ -321,7 +281,7 @@
             document.getElementById('btnShowForgot').classList.add('hidden');
             document.getElementById('btnBackLogin').classList.remove('hidden');
         } else {
-            document.getElementById('authTitle').innerText = '🔐 Portal Member & Kasir';
+            document.getElementById('authTitle').innerText = '🔐 Portal Member & Kasir OmniPOS';
             document.getElementById('btnShowRegister').classList.remove('hidden');
             document.getElementById('btnShowForgot').classList.remove('hidden');
             document.getElementById('btnBackLogin').classList.add('hidden');
@@ -334,7 +294,7 @@
         let isReg = document.getElementById('btnBackLogin').classList.contains('hidden') === false;
 
         if (isReg) {
-            let { data, error } = await sb.auth.signUp({ email, password });
+            let { error } = await sb.auth.signUp({ email, password });
             if (error) alert(error.message);
             else { alert('Pendaftaran berhasil! Silakan login.'); toggleAuthView('login'); }
         } else {
@@ -440,16 +400,16 @@
             htmlCat += `<div class="product-tile">
                 <img src="${p.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200'}" alt="prod">
                 <h4 style="font-size:13px; margin:4px 0;">${p.name}</h4>
-                <p style="font-size:12px; color:var(--ios-gray); margin:0 0 8px 0;">Rp ${Number(p.price).toLocaleString('id-ID')}</p>
+                <p style="font-size:12px; color:var(--bca-gray); margin:0 0 8px 0;">Rp ${Number(p.price).toLocaleString('id-ID')}</p>
                 <button class="btn btn-success" style="padding:6px 10px; font-size:11px; width:100%;" onclick="orderWhatsApp('${p.name}', ${p.price})">Pesan WA</button>
             </div>`;
 
             htmlPos += `<option value="${p.id}" data-price="${p.price}" data-stock="${p.stock}">${p.name} (Stok: ${p.stock}) - Rp ${Number(p.price).toLocaleString('id-ID')}</option>`;
 
-            htmlAdmin += `<div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
+            htmlAdmin += `<div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:10px; margin-bottom:8px;">
                 <div><b>${p.name}</b><br><small>Rp ${Number(p.price).toLocaleString('id-ID')} | Stok: ${p.stock} | Barcode: ${p.barcode||'-'}</small></div>
                 <div>
-                    <button class="btn btn-orange" style="padding:6px 10px; font-size:11px;" onclick="editProduct(${p.id}, '${p.name}', ${p.price}, ${p.stock}, '${p.barcode||''}', '${p.image_url||''}')">Edit/Restok</button>
+                    <button class="btn btn-orange" style="padding:6px 10px; font-size:11px;" onclick="editProduct(${p.id}, '${p.name}', ${p.price}, ${p.stock}, '${p.barcode||''}', '${p.image_url||''}')">Edit</button>
                     <button class="btn btn-danger" style="padding:6px 10px; font-size:11px;" onclick="deleteProduct(${p.id})">Hapus</button>
                 </div>
             </div>`;
@@ -529,7 +489,6 @@
 
         let total = price * qty;
 
-        // Catat order & kurangi stok
         await sb.from('orders').insert([{
             customer_name: customer, product_summary: `${qty}x ${prodName}`, total, status: 'Selesai / Diantar', user_email: currentUser.email
         }]);
@@ -538,7 +497,6 @@
         loadProducts();
         loadOrders();
 
-        // Cetak Struk
         document.getElementById('receiptStoreName').innerText = document.getElementById('storeNameDisplay').innerText;
         document.getElementById('receiptStoreAddress').innerText = document.getElementById('storeAddressDisplay').innerText;
         document.getElementById('receiptContent').innerHTML = `Pelanggan: ${customer}<br>Item: ${qty}x ${prodName}<br>Total: Rp ${total.toLocaleString('id-ID')}<br>Status: Lunas (POS)`;
@@ -570,7 +528,7 @@
                 totalTx += 1;
 
                 let badge = o.status === 'Diterima' ? 'badge-pending' : (o.status === 'Dipersiapkan' ? 'badge-process' : 'badge-done');
-                html += `<div class="card" style="padding:12px;">
+                html += `<div class="card" style="padding:12px; margin-bottom:8px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <b>#${o.id} - ${o.customer_name}</b>
                         <span class="badge ${badge}">${o.status}</span>
